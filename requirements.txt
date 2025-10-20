@@ -1,0 +1,5 @@
+openai>=1.40.0
+pandas>=2.0.0
+python-dateutil>=2.8.2
+geopy>=2.4.1
+meteostat>=1.6 .7 
