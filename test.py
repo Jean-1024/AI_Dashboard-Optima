@@ -3,14 +3,8 @@
 Utility Bill Visualizer (VS Code version)
 - Creates/updates an OpenAI Assistant with a local function tool for Meteostat temps
 - Uploads your CSV, asks for a dual-axis usage/temperature chart
-- (Optionally) asks for a SARIMA prediction on the same chart
-- Saves any returned PNGs to ./outputs
-
-Usage:
-  python utility_viz.py --csv ./data/optima_water_3in.csv --place "Scottsdale, AZ, US" --predict
-
-Env:
-  OPENAI_API_KEY=sk-...
+- Asks for a SARIMA prediction on the same chart
+- Saves any returned PNGs to your local output folder
 """
 
 from __future__ import annotations
@@ -18,7 +12,6 @@ import os, sys, time, json, subprocess, argparse
 from datetime import datetime
 from typing import List, Dict
 from pathlib import Path
-
 from openai import OpenAI
 
 # -----------------------------
