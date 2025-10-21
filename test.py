@@ -27,6 +27,11 @@ from openai import OpenAI
 def parse_args():
     p = argparse.ArgumentParser(description="Utility Bill Visualization with OpenAI Assistants API")
     p.add_argument("--csv", required=True, help="Path to the CSV file")
+    p.add_argument(
+    "--outdir",
+    default="./outputs",
+    help="Folder to save PNGs (created if missing). Default: ./outputs"
+    )
     p.add_argument("--place", default=os.getenv("PLACE", "Scottsdale, AZ, US"),
                    help="City, State, Country for temperature lookup (default from $PLACE or Scottsdale)")
     p.add_argument("--assistant-name", default="Utility Bill Analyst",
@@ -234,32 +239,56 @@ def poll_run(client: OpenAI, thread_id: str, run):
     return run
 
 def save_images_from_thread(client: OpenAI, thread_id: str, outdir: Path):
+    """
+    Downloads assistant-generated PNGs from the thread and saves them to `outdir`
+    with predictable names:
+      - 01_usage_temp.png
+      - 02_with_prediction.png
+      - 03_extra.png (if any)
+    Returns a list of saved file paths.
+    """
     messages = client.beta.threads.messages.list(thread_id=thread_id)
-    saved = 0
-    for msg in reversed(messages.data):  # newest -> oldest
+    image_parts = []
+
+    # Collect image parts newest->oldest, then reverse to chronological
+    for msg in reversed(messages.data):
         if msg.role != "assistant":
             continue
         for part in msg.content:
-            if part.type == "text":
-                print("\nAssistant says:\n", part.text.value)
-            elif part.type == "image_file":
+            if part.type == "image_file":
                 image_id = getattr(getattr(part, "image_file", None), "file_id", None)
-                if not image_id:
-                    print("[warn] image_file part had no file_id; skipping.")
-                    continue
-                try:
-                    file_stream = client.files.content(image_id)
-                    bin_data = file_stream.read()
-                except Exception as e:
-                    print(f"[warn] Failed to fetch file {image_id}: {e}")
-                    continue
-                out_path = outdir / f"viz_{image_id}.png"
-                with open(out_path, "wb") as f:
-                    f.write(bin_data)
-                print(f"[file] Saved chart to {out_path}")
-                saved += 1
-    if saved == 0:
+                if image_id:
+                    image_parts.append(image_id)
+
+    if not image_parts:
         print("[info] No image files found in assistant responses.")
+        return []
+
+    saved_paths = []
+    for idx, image_id in enumerate(image_parts, start=1):
+        try:
+            file_stream = client.files.content(image_id)
+            bin_data = file_stream.read()
+        except Exception as e:
+            print(f"[warn] Failed to fetch file {image_id}: {e}")
+            continue
+
+        # Name first two images meaningfully; the rest fall back to a numbered pattern
+        if idx == 1:
+            fname = "01_usage_temp.png"
+        elif idx == 2:
+            fname = "02_with_prediction.png"
+        else:
+            fname = f"{idx:02d}_extra.png"
+
+        out_path = outdir / fname
+        with open(out_path, "wb") as f:
+            f.write(bin_data)
+
+        print(f"[file] Saved chart to: {out_path}")
+        saved_paths.append(str(out_path))
+
+    return saved_paths
 
 # -----------------------------
 # Main flow
@@ -271,8 +300,9 @@ def main():
         print(f"[error] CSV not found: {csv_path}")
         sys.exit(1)
 
-    outdir = Path("./outputs")
+    outdir = Path(args.outdir).expanduser().resolve()
     mkdir_p(outdir)
+    print(f"[file] Images will be saved under: {outdir}")
 
     api_key = os.getenv("OPENAI_API_KEY")
     if not api_key:
@@ -338,6 +368,7 @@ def main():
 
     # Save any images from the thread
     save_images_from_thread(client, thread.id, outdir)
+    
 
 if __name__ == "__main__":
     main()
