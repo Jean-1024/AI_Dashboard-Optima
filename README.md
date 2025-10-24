@@ -14,7 +14,7 @@ macOS/Linux: ```source .venv/bin/activate```
 ```pip install -r requirements.txt```
 
 ## 2) Set your API key
-(replace the key code to your actual openai api key
+(replace the key code to your actual openai api key)\
 macOS/Linux:
 ```export OPENAI_API_KEY="sk-..."```\
 Windows PowerShell:
